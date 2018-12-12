@@ -1,0 +1,25 @@
+{
+  "name": "bubble-validator",
+  "version": "1.0.0",
+  "description": "A multiple directives validator for Vue.js, simple and flexible",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "rollup -c",
+    "build:minify": "NODE_ENV=production rollup -c",
+    "build:rules": "rollup ./src/rules.js --file ./dist/rules.js --format cjs",
+    "prepublish": "npm run build && npm run build:minify",
+    "test": "npm run build:rules && mocha"
+  },
+  "author": "Ruphi <ruphilau@gmail.com> (https://ruphi.cn/)",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.2.0",
+    "@babel/plugin-transform-runtime": "^7.2.0",
+    "@babel/preset-env": "^7.2.0",
+    "mocha": "^5.2.0",
+    "rollup": "^0.66.6",
+    "rollup-plugin-babel": "^4.0.3",
+    "rollup-plugin-node-resolve": "^4.0.0",
+    "rollup-plugin-uglify": "^6.0.0"
+  }
+}
