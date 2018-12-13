@@ -2,17 +2,33 @@
  * 核心处理方法集合
  * Created by hzliurufei on 2018-11-28 17:15:35 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2018-12-12 14:41:28
+ * @Last Modified time: 2018-12-13 11:29:39
  */
 
 import { INITIAL_STATUS, ELEMENT_TYPE } from './const'
-import { has, getElementType } from './util'
+import { has, getType, getElementType } from './util'
 
 /**
- * DOM事件处理器引用表（回收阶段释放用）
+ * DOM/组件事件解绑处理器
  * @type {object}
  */
-const _DOMEventHandlers = {}
+const _EventOffHandlers = {}
+
+/**
+ * 处理表单聚焦
+ * @this {VueComponent}
+ * @param {object} field 字段对象
+ * @return {void}
+ */
+function _handleFocus(field) {
+    Object.assign(field, INITIAL_STATUS)
+    // 重置状态
+    deriveStatus.call(this)
+    field.$handlers.forEach((item) => {
+        const directive = item.$directive
+        field[directive] = false
+    })
+}
 
 /**
  * 处理表单字段失焦
@@ -54,7 +70,7 @@ function _handleWatch(field) {
  * @param {object} field 
  * @return {void}
  */
-function _handleUnfocusedatch(field) {
+function _handleUnfocus(field) {
     if (field.untouched) {
         field.untouched = false
         field.touched = true
@@ -65,27 +81,41 @@ function _handleUnfocusedatch(field) {
 /**
  * 添加监听器
  * @this {VueComponent}
+ * @param {VNode} vnode  VNode对象
  * @param {object} field 字段对象
  * @return {void}
  */
-export function addListener(field) {
+export function addListener(vnode, field) {
     const el = field.$element
     const type = getElementType(el)
     switch (type) {
         case ELEMENT_TYPE.CHECKRADIO:
-            field.$watcher = this.$watch(field.$expression, _handleUnfocusedatch.bind(this, field))
+            field.$watcher = this.$watch(field.$expression, _handleUnfocus.bind(this, field))
             break
         case ELEMENT_TYPE.COMMONFORM:
-            if (!_DOMEventHandlers[field.$name]) {
-                _DOMEventHandlers[field.$name] = []
-            }
-            const blurHandler = _handleBlur.bind(this, field)
-            el.addEventListener('blur', blurHandler)
-            _DOMEventHandlers[field.$name].push(blurHandler)
             field.$watcher = this.$watch(field.$expression, _handleWatch.bind(this, field))
             break
         case ELEMENT_TYPE.NONFORM:
-            field.$watcher = this.$watch(field.$expression, _handleUnfocusedatch.bind(this, field))    
+            field.$watcher = this.$watch(field.$expression, _handleUnfocus.bind(this, field))    
+    }
+    // 对于有blur事件的DOM节点，或者组件，绑定失焦时处理
+    const componentInstance = vnode.componentInstance
+    const isComponent = componentInstance !== undefined
+    if (type === ELEMENT_TYPE.COMMONFORM || isComponent) {
+        const blurHandler = _handleBlur.bind(this, field)
+        const focusHandler = _handleFocus.bind(this, field)
+        const handlers = _EventOffHandlers[field.$name] = _EventOffHandlers[field.$name] || []
+        if (type === ELEMENT_TYPE.COMMONFORM) {
+            el.addEventListener('blur', blurHandler)
+            el.addEventListener('focus', focusHandler)
+            handlers.push(() => el.removeEventListener('blur', blurHandler))
+            handlers.push(() => el.removeEventListener('focus', focusHandler))
+        } else if (isComponent) {
+            componentInstance.$on('blur', blurHandler)
+            componentInstance.$on('focus', focusHandler)
+            handlers.push(() => componentInstance.$off('blur', blurHandler))
+            handlers.push(() => componentInstance.$off('focus', focusHandler))
+        }
     }
 }
 
@@ -93,12 +123,13 @@ export function addListener(field) {
  * 添加验证字段
  * @this {VueComponent}
  * @param {string} name         字段name
- * @param {HTMLElement} element 节点元素对象
+ * @param {VNode} vnode         节点VNode对象
  * @param {any} originValue     字段初始值
  * @param {any} expression      字段表达式
  * @return {void}
  */
-export function addField(name, element, originValue, expression) {
+export function addField(name, vnode, originValue, expression) {
+    const element = vnode.elm
     // 初始化验证数据结构
     if (!this.validation[name]) {
         this.$set(this.validation, name, Object.assign({}, INITIAL_STATUS))
@@ -113,7 +144,7 @@ export function addField(name, element, originValue, expression) {
     }
     const field = this.validation[name]
     // 添加事件监听处理器
-    addListener.call(this, field)
+    addListener.call(this, vnode, field)
     // 加入域表，方便做统一检查
     if (!has(this.validation.$fields, name)) {
         this.validation.$fields.push(name)
@@ -140,13 +171,15 @@ export function removeField(name) {
     const relatedUnwatcher = field.$related
     typeof unwatcher === 'function' && unwatcher()
     typeof relatedUnwatcher === 'function' && relatedUnwatcher()
-    // 移除DOM监听
+    // 移除DOM/组件事件监听
     const type = getElementType(el)
-    if (type === ELEMENT_TYPE.COMMONFORM) {
-        _DOMEventHandlers[field.$name].forEach(handler => {
-            el.removeEventListener('blur', handler)
-        })
-        _DOMEventHandlers[field.$name] = null
+    const eventOffHandlers = _EventOffHandlers[field.$name]
+    if (type === ELEMENT_TYPE.COMMONFORM && getType(eventOffHandlers) === 'array') {
+        while (eventOffHandlers.length) {
+            const offHandler = eventOffHandlers.shift()
+            offHandler()
+        }
+        _EventOffHandlers[field.$name] = null
     }
     this.$delete(validation, name)
     deriveStatus.call(this)

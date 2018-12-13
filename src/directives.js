@@ -2,7 +2,7 @@
  * 指令定义处理
  * Created by hzliurufei on 2018-12-06 22:03:21 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2018-12-12 14:47:09
+ * @Last Modified time: 2018-12-12 18:01:49
  */
 
 import { addField, removeField, addRelated, addRuleHandler } from './core'
@@ -50,12 +50,12 @@ function _initialBind(el, directive, vnode) {
         : getValidatorDirective(vnode)
     if (!validatorDirective) {
         if (has(BUILT_IN_DIRECTIVES, directiveName)) {
-            name = getFieldName(el)
+            name = getFieldName(vnode)
             _invalidElementWarn(name)
         }
         return false
     }
-    name = name || getFieldName(el)
+    name = name || getFieldName(vnode)
     _checkFieldName(name)
     const ctx = vnode.context
     const field = ctx.validation[name]
@@ -63,7 +63,7 @@ function _initialBind(el, directive, vnode) {
         error(`Duplicated validation field name: ${name}`)
     }
     if (!field) {
-        addField.call(ctx, name, el, validatorDirective.value, validatorDirective.expression)
+        addField.call(ctx, name, vnode, validatorDirective.value, validatorDirective.expression)
     }
     return true
 }
@@ -77,7 +77,7 @@ function _initialBind(el, directive, vnode) {
  */
 function _handleValidatorValueUpdate(el, binding, vnode) {
     const ctx = vnode.context
-    const name = getFieldName(el, false)
+    const name = getFieldName(vnode, false)
     if (!name) {
         return
     }
@@ -101,7 +101,7 @@ function _handleValidatorValueUpdate(el, binding, vnode) {
  * @return {void}
  */
 function _handleUnbild(el, binding, vnode) {
-    const name = getFieldName(el, false)
+    const name = getFieldName(vnode, false)
     if (!name) {
         return
     }
@@ -121,7 +121,7 @@ function _ruleDirectiveDefinition() {
             }
             const ctx = vnode.context
             const directiveName = toCamelCase(directive.name)
-            const name = getFieldName(el)
+            const name = getFieldName(vnode)
             const directiveValue = getRuleConfig(directiveName, directive.value)
             addRuleHandler.call(ctx, name, {
                 $priority: priorityMap[directiveName],
@@ -133,7 +133,7 @@ function _ruleDirectiveDefinition() {
         update(el, directive, vnode) {
             const ctx = vnode.context
             const directiveName = toCamelCase(directive.name)
-            const name = getFieldName(el)
+            const name = getFieldName(vnode)
             const handler = getHandler(ctx.validation[name].$handlers, directiveName)
             if (handler) {
                 handler.$directiveVal = getRuleConfig(directiveName, directive.value)
@@ -153,7 +153,7 @@ function _handleRelated() {
                 return
             }
             const ctx = vnode.context
-            const name = getFieldName(el)
+            const name = getFieldName(vnode)
             addRelated.call(ctx, ctx.validation[name], directive.expression)
         }
     }
