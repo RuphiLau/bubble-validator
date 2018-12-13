@@ -74,7 +74,7 @@
   /**
    * Created by hzliurufei on 2018-11-28 16:23:40 
    * @Last Modified by: hzliurufei
-   * @Last Modified time: 2018-12-12 14:40:27
+   * @Last Modified time: 2018-12-12 21:39:28
    */
   /**
    * 获取数据的实际类型
@@ -167,14 +167,15 @@
   }
   /**
    * 获得字段name
-   * @param {HTMLElement} el 节点元素对象
+   * @param {VNode} vnode    节点VNode对象
    * @param {boolean} check  是否检查获取结果
    * @return {string}
    */
 
-  function getFieldName(el) {
+  function getFieldName(vnode) {
     var check = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
-    var name = el.getAttribute('name') || el.getAttribute('data-name');
+    var el = vnode.elm;
+    var name = el.getAttribute('name') || el.getAttribute('data-name') || vnode.data.attrs.name;
 
     if (check && !name) {
       error('You must specify a "name" attribute for the validation field');
@@ -312,20 +313,38 @@
    * 核心处理方法集合
    * Created by hzliurufei on 2018-11-28 17:15:35 
    * @Last Modified by: hzliurufei
-   * @Last Modified time: 2018-12-12 14:41:28
+   * @Last Modified time: 2018-12-13 16:54:34
    */
   /**
-   * DOM事件处理器引用表（回收阶段释放用）
+   * DOM/组件事件解绑处理器
    * @type {object}
    */
 
-  var _DOMEventHandlers = {};
+  var _EventOffHandlers = {};
+  /**
+   * 处理表单聚焦
+   * @this {VueComponent}
+   * @param {object} field 字段对象
+   * @return {void}
+   */
+
+  function _handleFocus(field) {
+    Object.assign(field, INITIAL_STATUS); // 重置状态
+
+    deriveStatus.call(this);
+    var handlers = field.$handlers || [];
+    handlers.forEach(function (item) {
+      var directive = item.$directive;
+      field[directive] = false;
+    });
+  }
   /**
    * 处理表单字段失焦
    * @this {VueComponent}
    * @param {object} field 字段对象
    * @return {void}
    */
+
 
   function _handleBlur(field) {
     var name = field.$name;
@@ -367,7 +386,7 @@
    */
 
 
-  function _handleUnfocusedatch(field) {
+  function _handleUnfocus(field) {
     if (field.untouched) {
       field.untouched = false;
       field.touched = true;
@@ -378,50 +397,74 @@
   /**
    * 添加监听器
    * @this {VueComponent}
+   * @param {VNode} vnode  VNode对象
    * @param {object} field 字段对象
    * @return {void}
    */
 
 
-  function addListener(field) {
+  function addListener(vnode, field) {
     var el = field.$element;
     var type = getElementType(el);
 
     switch (type) {
       case ELEMENT_TYPE.CHECKRADIO:
-        field.$watcher = this.$watch(field.$expression, _handleUnfocusedatch.bind(this, field));
+        field.$watcher = this.$watch(field.$expression, _handleUnfocus.bind(this, field));
         break;
 
       case ELEMENT_TYPE.COMMONFORM:
-        if (!_DOMEventHandlers[field.$name]) {
-          _DOMEventHandlers[field.$name] = [];
-        }
-
-        var blurHandler = _handleBlur.bind(this, field);
-
-        el.addEventListener('blur', blurHandler);
-
-        _DOMEventHandlers[field.$name].push(blurHandler);
-
         field.$watcher = this.$watch(field.$expression, _handleWatch.bind(this, field));
         break;
 
       case ELEMENT_TYPE.NONFORM:
-        field.$watcher = this.$watch(field.$expression, _handleUnfocusedatch.bind(this, field));
+        field.$watcher = this.$watch(field.$expression, _handleUnfocus.bind(this, field));
+    } // 对于有blur事件的DOM节点，或者组件，绑定失焦时处理
+
+
+    var componentInstance = vnode.componentInstance;
+    var isComponent = componentInstance !== undefined;
+
+    if (type === ELEMENT_TYPE.COMMONFORM || isComponent) {
+      var blurHandler = _handleBlur.bind(this, field);
+
+      var focusHandler = _handleFocus.bind(this, field);
+
+      var handlers = _EventOffHandlers[field.$name] = _EventOffHandlers[field.$name] || [];
+
+      if (type === ELEMENT_TYPE.COMMONFORM) {
+        el.addEventListener('blur', blurHandler);
+        el.addEventListener('focus', focusHandler);
+        handlers.push(function () {
+          return el.removeEventListener('blur', blurHandler);
+        });
+        handlers.push(function () {
+          return el.removeEventListener('focus', focusHandler);
+        });
+      } else if (isComponent) {
+        componentInstance.$on('blur', blurHandler);
+        componentInstance.$on('focus', focusHandler);
+        handlers.push(function () {
+          return componentInstance.$off('blur', blurHandler);
+        });
+        handlers.push(function () {
+          return componentInstance.$off('focus', focusHandler);
+        });
+      }
     }
   }
   /**
    * 添加验证字段
    * @this {VueComponent}
    * @param {string} name         字段name
-   * @param {HTMLElement} element 节点元素对象
+   * @param {VNode} vnode         节点VNode对象
    * @param {any} originValue     字段初始值
    * @param {any} expression      字段表达式
    * @return {void}
    */
 
-  function addField(name, element, originValue, expression) {
-    // 初始化验证数据结构
+  function addField(name, vnode, originValue, expression) {
+    var element = vnode.elm; // 初始化验证数据结构
+
     if (!this.validation[name]) {
       this.$set(this.validation, name, Object.assign({}, INITIAL_STATUS));
       Object.assign(this.validation[name], {
@@ -436,7 +479,7 @@
 
     var field = this.validation[name]; // 添加事件监听处理器
 
-    addListener.call(this, field); // 加入域表，方便做统一检查
+    addListener.call(this, vnode, field); // 加入域表，方便做统一检查
 
     if (!has(this.validation.$fields, name)) {
       this.validation.$fields.push(name);
@@ -464,16 +507,18 @@
     var unwatcher = field.$watcher;
     var relatedUnwatcher = field.$related;
     typeof unwatcher === 'function' && unwatcher();
-    typeof relatedUnwatcher === 'function' && relatedUnwatcher(); // 移除DOM监听
+    typeof relatedUnwatcher === 'function' && relatedUnwatcher(); // 移除DOM/组件事件监听
 
     var type = getElementType(el);
+    var eventOffHandlers = _EventOffHandlers[field.$name];
 
-    if (type === ELEMENT_TYPE.COMMONFORM) {
-      _DOMEventHandlers[field.$name].forEach(function (handler) {
-        el.removeEventListener('blur', handler);
-      });
+    if (type === ELEMENT_TYPE.COMMONFORM && getType(eventOffHandlers) === 'array') {
+      while (eventOffHandlers.length) {
+        var offHandler = eventOffHandlers.shift();
+        offHandler();
+      }
 
-      _DOMEventHandlers[field.$name] = null;
+      _EventOffHandlers[field.$name] = null;
     }
 
     this.$delete(validation, name);
@@ -779,7 +824,7 @@
 
     if (!validatorDirective) {
       if (has(BUILT_IN_DIRECTIVES, directiveName)) {
-        name = getFieldName(el);
+        name = getFieldName(vnode);
 
         _invalidElementWarn(name);
       }
@@ -787,7 +832,7 @@
       return false;
     }
 
-    name = name || getFieldName(el);
+    name = name || getFieldName(vnode);
 
     _checkFieldName(name);
 
@@ -799,7 +844,7 @@
     }
 
     if (!field) {
-      addField.call(ctx, name, el, validatorDirective.value, validatorDirective.expression);
+      addField.call(ctx, name, vnode, validatorDirective.value, validatorDirective.expression);
     }
 
     return true;
@@ -815,7 +860,7 @@
 
   function _handleValidatorValueUpdate(el, binding, vnode) {
     var ctx = vnode.context;
-    var name = getFieldName(el, false);
+    var name = getFieldName(vnode, false);
 
     if (!name) {
       return;
@@ -846,7 +891,7 @@
 
 
   function _handleUnbild(el, binding, vnode) {
-    var name = getFieldName(el, false);
+    var name = getFieldName(vnode, false);
 
     if (!name) {
       return;
@@ -870,7 +915,7 @@
 
         var ctx = vnode.context;
         var directiveName = toCamelCase(directive.name);
-        var name = getFieldName(el);
+        var name = getFieldName(vnode);
         var directiveValue = getRuleConfig(directiveName, directive.value);
         addRuleHandler.call(ctx, name, {
           $priority: priorityMap[directiveName],
@@ -882,7 +927,7 @@
       update: function update(el, directive, vnode) {
         var ctx = vnode.context;
         var directiveName = toCamelCase(directive.name);
-        var name = getFieldName(el);
+        var name = getFieldName(vnode);
         var handler = getHandler(ctx.validation[name].$handlers, directiveName);
 
         if (handler) {
@@ -905,7 +950,7 @@
         }
 
         var ctx = vnode.context;
-        var name = getFieldName(el);
+        var name = getFieldName(vnode);
         addRelated.call(ctx, ctx.validation[name], directive.expression);
       }
     };

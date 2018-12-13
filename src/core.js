@@ -2,7 +2,7 @@
  * 核心处理方法集合
  * Created by hzliurufei on 2018-11-28 17:15:35 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2018-12-13 11:29:39
+ * @Last Modified time: 2018-12-13 16:54:34
  */
 
 import { INITIAL_STATUS, ELEMENT_TYPE } from './const'
@@ -24,7 +24,8 @@ function _handleFocus(field) {
     Object.assign(field, INITIAL_STATUS)
     // 重置状态
     deriveStatus.call(this)
-    field.$handlers.forEach((item) => {
+    const handlers = field.$handlers || []
+    handlers.forEach((item) => {
         const directive = item.$directive
         field[directive] = false
     })
