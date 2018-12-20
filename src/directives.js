@@ -2,7 +2,7 @@
  * 指令定义处理
  * Created by hzliurufei on 2018-12-06 22:03:21 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2018-12-12 18:01:49
+ * @Last Modified time: 2018-12-20 14:21:10
  */
 
 import { addField, removeField, addRelated, addRuleHandler } from './core'
@@ -176,7 +176,8 @@ export default function installDirectives(Vue) {
     // 注册非表单元素字段绑定指令
     Vue.directive('validator', {
         bind: _initialBind,
-        componentUpdated: _handleValidatorValueUpdate
+        componentUpdated: _handleValidatorValueUpdate,
+        unbind: _handleUnbild
     })
     // 注册数据关联指令
     Vue.directive('related', _handleRelated())
