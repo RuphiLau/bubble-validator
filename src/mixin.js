@@ -2,27 +2,28 @@
  * 通过Mixin暴露校验结果与校验方法
  * Created by hzliurufei on 2018-11-28 16:07:01 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2018-12-12 14:49:39
+ * @Last Modified time: 2019-01-10 17:42:31
  */
 
 import { INITIAL_STATUS } from './const'
 import { deriveStatus } from './core'
+import getDirectives from './directives'
 
-export default function installMixin(Vue, options = {}) {
+export default function BubbleValidator(options = {}) {
     options = Object.assign({
         accessor: 'v'
     }, options)
-    Vue.mixin({
+    return {
         data() {
             const validation = Object.assign({}, INITIAL_STATUS)
             return { validation }
         },
         created() {
-            this.validation.$fields = []
+            this.validation && (this.validation.$fields = [])
         },
         methods: {
             [options.accessor](name, key = 'invalid') {
-                const validation = this.validation
+                const validation = this.validation || {}
                 return validation[name] && validation[name][key]
             },
             resetValidation() {
@@ -52,6 +53,7 @@ export default function installMixin(Vue, options = {}) {
                 }
                 !disableSync && deriveStatus.call(this)
             }
-        }
-    })
+        },
+        directives: getDirectives()
+    }
 }

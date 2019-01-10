@@ -19,25 +19,6 @@
     return obj;
   }
 
-  function _objectSpread(target) {
-    for (var i = 1; i < arguments.length; i++) {
-      var source = arguments[i] != null ? arguments[i] : {};
-      var ownKeys = Object.keys(source);
-
-      if (typeof Object.getOwnPropertySymbols === 'function') {
-        ownKeys = ownKeys.concat(Object.getOwnPropertySymbols(source).filter(function (sym) {
-          return Object.getOwnPropertyDescriptor(source, sym).enumerable;
-        }));
-      }
-
-      ownKeys.forEach(function (key) {
-        _defineProperty(target, key, source[key]);
-      });
-    }
-
-    return target;
-  }
-
   /**
    * 常量表
    * Created by hzliurufei on 2018-12-06 22:04:14 
@@ -74,7 +55,7 @@
   /**
    * Created by hzliurufei on 2018-11-28 16:23:40 
    * @Last Modified by: hzliurufei
-   * @Last Modified time: 2018-12-12 21:39:28
+   * @Last Modified time: 2019-01-10 16:09:57
    */
   /**
    * 获取数据的实际类型
@@ -168,16 +149,17 @@
   /**
    * 获得字段name
    * @param {VNode} vnode    节点VNode对象
-   * @param {boolean} check  是否检查获取结果
+   * @param {boolean} report 找不到name时是否抛出错误
    * @return {string}
    */
 
   function getFieldName(vnode) {
-    var check = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+    var report = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
     var el = vnode.elm;
-    var name = el.getAttribute('name') || el.getAttribute('data-name') || vnode.data.attrs.name;
+    var attrs = vnode.data.attrs || {};
+    var name = attrs.name || attrs['data-name'] || el.getAttribute('name') || el.dataset.name;
 
-    if (check && !name) {
+    if (report && !name) {
       error('You must specify a "name" attribute for the validation field');
     }
 
@@ -313,7 +295,7 @@
    * 核心处理方法集合
    * Created by hzliurufei on 2018-11-28 17:15:35 
    * @Last Modified by: hzliurufei
-   * @Last Modified time: 2018-12-13 16:54:34
+   * @Last Modified time: 2019-01-10 17:05:01
    */
   /**
    * DOM/组件事件解绑处理器
@@ -332,8 +314,7 @@
     Object.assign(field, INITIAL_STATUS); // 重置状态
 
     deriveStatus.call(this);
-    var handlers = field.$handlers || [];
-    handlers.forEach(function (item) {
+    field.$handlers.forEach(function (item) {
       var directive = item.$directive;
       field[directive] = false;
     });
@@ -469,6 +450,7 @@
       this.$set(this.validation, name, Object.assign({}, INITIAL_STATUS));
       Object.assign(this.validation[name], {
         $name: name,
+        $handlers: [],
         $element: element,
         $expression: expression,
         $origin: originValue,
@@ -549,7 +531,7 @@
 
   function addRuleHandler(name, handler) {
     var field = this.validation[name];
-    var handlers = field.$handlers = field.$handlers || [];
+    var handlers = field.$handlers;
     var rules = handlers.map(function (item) {
       return item.$directive;
     });
@@ -786,6 +768,12 @@
   };
 
   /**
+   * 指令定义处理
+   * Created by hzliurufei on 2018-12-06 22:03:21 
+   * @Last Modified by: hzliurufei
+   * @Last Modified time: 2019-01-10 17:11:56
+   */
+  /**
    * 非法校验元素警告处理
    * @param {string} name 字段name
    * @return {boolean}
@@ -812,29 +800,27 @@
    * @param {HTMLElement} el     节点元素对象
    * @param {object} directive   指令对象
    * @param {VNode} vnode        VNode对象
-   * @return {boolean}
+   * @return {string} 初始化成功后，返回字段name
    */
 
 
   function _initialBind(el, directive, vnode) {
-    var name = null; // 取得校验指令
+    if (!!el.dataset.bubbleBound) {
+      return;
+    }
+
+    var name = getFieldName(vnode);
+
+    _checkFieldName(name); // 取得校验指令
+
 
     var directiveName = toCamelCase(directive.name);
     var validatorDirective = directiveName === 'model' && directive.modifiers.validator || directiveName === 'validator' ? directive : getValidatorDirective(vnode);
 
     if (!validatorDirective) {
-      if (has(BUILT_IN_DIRECTIVES, directiveName)) {
-        name = getFieldName(vnode);
-
-        _invalidElementWarn(name);
-      }
-
-      return false;
+      has(BUILT_IN_DIRECTIVES, directiveName) && _invalidElementWarn(name);
+      return;
     }
-
-    name = name || getFieldName(vnode);
-
-    _checkFieldName(name);
 
     var ctx = vnode.context;
     var field = ctx.validation[name];
@@ -847,7 +833,8 @@
       addField.call(ctx, name, vnode, validatorDirective.value, validatorDirective.expression);
     }
 
-    return true;
+    el.dataset.bubbleBound = true;
+    return name;
   }
   /**
    * 处理观测值更新
@@ -865,8 +852,6 @@
     if (!name) {
       return;
     }
-
-    _checkFieldName(name);
 
     var field = ctx.validation[name];
 
@@ -909,13 +894,14 @@
   function _ruleDirectiveDefinition() {
     return {
       bind: function bind(el, directive, vnode, oldVNode) {
-        if (!_initialBind(el, directive, vnode)) {
+        var name = _initialBind(el, directive, vnode);
+
+        if (!name) {
           return;
         }
 
         var ctx = vnode.context;
         var directiveName = toCamelCase(directive.name);
-        var name = getFieldName(vnode);
         var directiveValue = getRuleConfig(directiveName, directive.value);
         addRuleHandler.call(ctx, name, {
           $priority: priorityMap[directiveName],
@@ -927,7 +913,12 @@
       update: function update(el, directive, vnode) {
         var ctx = vnode.context;
         var directiveName = toCamelCase(directive.name);
-        var name = getFieldName(vnode);
+        var name = getFieldName(vnode, false);
+
+        if (!name || !ctx.validation[name]) {
+          return;
+        }
+
         var handler = getHandler(ctx.validation[name].$handlers, directiveName);
 
         if (handler) {
@@ -945,12 +936,13 @@
   function _handleRelated() {
     return {
       bind: function bind(el, directive, vnode, oldVNode) {
-        if (!_initialBind(el, directive, vnode)) {
+        var name = _initialBind(el, directive, vnode);
+
+        if (!name) {
           return;
         }
 
         var ctx = vnode.context;
-        var name = getFieldName(vnode);
         addRelated.call(ctx, ctx.validation[name], directive.expression);
       }
     };
@@ -962,38 +954,41 @@
    */
 
 
-  function installDirectives(Vue) {
-    var vModel = Vue.directive('model'); // 注册表单元素绑定指令
+  function getDirectives() {
+    var directives = {}; // 注册表单元素绑定指令
 
-    Vue.directive('model', _objectSpread({}, vModel, {
+    directives.model = {
       bind: _initialBind,
       componentUpdated: _handleValidatorValueUpdate,
-      unbind: _handleUnbild
-    })); // 注册非表单元素字段绑定指令
+      unbind: _handleUnbild // 注册非表单元素字段绑定指令
 
-    Vue.directive('validator', {
+    };
+    directives.validator = {
       bind: _initialBind,
-      componentUpdated: _handleValidatorValueUpdate
-    }); // 注册数据关联指令
+      componentUpdated: _handleValidatorValueUpdate,
+      unbind: _handleUnbild // 注册数据关联指令
 
-    Vue.directive('related', _handleRelated()); // 注册各类验证指令
+    };
+    directives.related = _handleRelated(); // 注册各类验证指令
 
     var _arr = Object.keys(validationRules);
 
     for (var _i = 0; _i < _arr.length; _i++) {
       var ruleName = _arr[_i];
-      Vue.directive(ruleName, _ruleDirectiveDefinition());
+      directives[ruleName] = _ruleDirectiveDefinition();
     }
+
+    return directives;
   }
 
-  function installMixin(Vue) {
+  function BubbleValidator() {
     var _methods;
 
-    var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
     options = Object.assign({
       accessor: 'v'
     }, options);
-    Vue.mixin({
+    return {
       data: function data() {
         var validation = Object.assign({}, INITIAL_STATUS);
         return {
@@ -1001,11 +996,15 @@
         };
       },
       created: function created() {
-        this.validation.$fields = [];
+        console.log('created');
+        this.validation && (this.validation.$fields = []);
+      },
+      updated: function updated() {
+        console.log('updated');
       },
       methods: (_methods = {}, _defineProperty(_methods, options.accessor, function (name) {
         var key = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'invalid';
-        var validation = this.validation;
+        var validation = this.validation || {};
         return validation[name] && validation[name][key];
       }), _defineProperty(_methods, "resetValidation", function resetValidation() {}), _defineProperty(_methods, "checkValidity", function checkValidity(name) {
         var disableSync = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
@@ -1078,17 +1077,11 @@
         }
 
         !disableSync && deriveStatus.call(this);
-      }), _methods)
-    });
+      }), _methods),
+      directives: getDirectives()
+    };
   }
 
-  var PopValidator = {
-    install: function install(Vue, options) {
-      installDirectives(Vue);
-      installMixin(Vue, options);
-    }
-  };
-
-  return PopValidator;
+  return BubbleValidator;
 
 })));

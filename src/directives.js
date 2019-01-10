@@ -2,7 +2,7 @@
  * 指令定义处理
  * Created by hzliurufei on 2018-12-06 22:03:21 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2018-12-20 14:21:10
+ * @Last Modified time: 2019-01-10 17:11:56
  */
 
 import { addField, removeField, addRelated, addRuleHandler } from './core'
@@ -39,24 +39,23 @@ function _checkFieldName(name) {
  * @param {HTMLElement} el     节点元素对象
  * @param {object} directive   指令对象
  * @param {VNode} vnode        VNode对象
- * @return {boolean}
+ * @return {string} 初始化成功后，返回字段name
  */
 function _initialBind(el, directive, vnode) {
-    let name = null
+    if (!!el.dataset.bubbleBound) {
+        return
+    }
+    const name = getFieldName(vnode)
+    _checkFieldName(name)
     // 取得校验指令
     const directiveName = toCamelCase(directive.name)
     const validatorDirective = (directiveName === 'model' && directive.modifiers.validator) || (directiveName === 'validator')
         ? directive
         : getValidatorDirective(vnode)
     if (!validatorDirective) {
-        if (has(BUILT_IN_DIRECTIVES, directiveName)) {
-            name = getFieldName(vnode)
-            _invalidElementWarn(name)
-        }
-        return false
+        has(BUILT_IN_DIRECTIVES, directiveName) && _invalidElementWarn(name)
+        return
     }
-    name = name || getFieldName(vnode)
-    _checkFieldName(name)
     const ctx = vnode.context
     const field = ctx.validation[name]
     if (directiveName === 'model' && field && field.$name && el !== field.$element) {
@@ -65,7 +64,8 @@ function _initialBind(el, directive, vnode) {
     if (!field) {
         addField.call(ctx, name, vnode, validatorDirective.value, validatorDirective.expression)
     }
-    return true
+    el.dataset.bubbleBound = true
+    return name
 }
 
 /**
@@ -81,7 +81,6 @@ function _handleValidatorValueUpdate(el, binding, vnode) {
     if (!name) {
         return
     }
-    _checkFieldName(name)
     const field = ctx.validation[name]
     if (field.$inited && binding.value === binding.oldValue) {
         return
@@ -116,12 +115,12 @@ function _handleUnbild(el, binding, vnode) {
 function _ruleDirectiveDefinition() {
     return {
         bind(el, directive, vnode, oldVNode) {
-            if (!_initialBind(el, directive, vnode)) {
+            const name = _initialBind(el, directive, vnode)
+            if (!name) {
                 return
             }
             const ctx = vnode.context
             const directiveName = toCamelCase(directive.name)
-            const name = getFieldName(vnode)
             const directiveValue = getRuleConfig(directiveName, directive.value)
             addRuleHandler.call(ctx, name, {
                 $priority: priorityMap[directiveName],
@@ -133,7 +132,10 @@ function _ruleDirectiveDefinition() {
         update(el, directive, vnode) {
             const ctx = vnode.context
             const directiveName = toCamelCase(directive.name)
-            const name = getFieldName(vnode)
+            const name = getFieldName(vnode, false)
+            if (!name || !ctx.validation[name]) {
+                return
+            }
             const handler = getHandler(ctx.validation[name].$handlers, directiveName)
             if (handler) {
                 handler.$directiveVal = getRuleConfig(directiveName, directive.value)
@@ -149,11 +151,11 @@ function _ruleDirectiveDefinition() {
 function _handleRelated() {
     return {
         bind(el, directive, vnode, oldVNode) {
-            if (!_initialBind(el, directive, vnode)) {
+            const name = _initialBind(el, directive, vnode)
+            if (!name) {
                 return
             }
             const ctx = vnode.context
-            const name = getFieldName(vnode)
             addRelated.call(ctx, ctx.validation[name], directive.expression)
         }
     }
@@ -164,25 +166,25 @@ function _handleRelated() {
  * @param {Vue} Vue 
  * @return {void}
  */
-export default function installDirectives(Vue) {
-    const vModel = Vue.directive('model')
+export default function getDirectives() {
+    const directives = {}
     // 注册表单元素绑定指令
-    Vue.directive('model', {
-        ...vModel,
+    directives.model = {
         bind: _initialBind,
         componentUpdated: _handleValidatorValueUpdate,
         unbind: _handleUnbild
-    })
+    }
     // 注册非表单元素字段绑定指令
-    Vue.directive('validator', {
+    directives.validator = {
         bind: _initialBind,
         componentUpdated: _handleValidatorValueUpdate,
         unbind: _handleUnbild
-    })
+    }
     // 注册数据关联指令
-    Vue.directive('related', _handleRelated())
+    directives.related = _handleRelated()
     // 注册各类验证指令
     for (const ruleName of Object.keys(validationRules)) {
-        Vue.directive(ruleName, _ruleDirectiveDefinition())
+        directives[ruleName] = _ruleDirectiveDefinition()
     }
+    return directives
 }

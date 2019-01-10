@@ -1,7 +1,7 @@
 /**
  * Created by hzliurufei on 2018-11-28 16:23:40 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2018-12-12 21:39:28
+ * @Last Modified time: 2019-01-10 16:09:57
  */
 
 import { FORM_TAGS, ELEMENT_TYPE, PRESERVED_WORDS, BOOLEAN_DIRECTIVES } from './const'
@@ -92,13 +92,17 @@ export function getElementType(el) {
 /**
  * 获得字段name
  * @param {VNode} vnode    节点VNode对象
- * @param {boolean} check  是否检查获取结果
+ * @param {boolean} report 找不到name时是否抛出错误
  * @return {string}
  */
-export function getFieldName(vnode, check = true) {
+export function getFieldName(vnode, report = true) {
     const el = vnode.elm
-    const name = el.getAttribute('name') || el.getAttribute('data-name') || vnode.data.attrs.name
-    if (check && !name) {
+    const attrs = vnode.data.attrs || {}
+    const name = attrs.name
+        || attrs['data-name']
+        || el.getAttribute('name')
+        || el.dataset.name
+    if (report && !name) {
         error('You must specify a "name" attribute for the validation field')
     }
     return name

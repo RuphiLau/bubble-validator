@@ -2,7 +2,7 @@
  * 核心处理方法集合
  * Created by hzliurufei on 2018-11-28 17:15:35 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2018-12-13 16:54:34
+ * @Last Modified time: 2019-01-10 17:05:01
  */
 
 import { INITIAL_STATUS, ELEMENT_TYPE } from './const'
@@ -24,8 +24,7 @@ function _handleFocus(field) {
     Object.assign(field, INITIAL_STATUS)
     // 重置状态
     deriveStatus.call(this)
-    const handlers = field.$handlers || []
-    handlers.forEach((item) => {
+    field.$handlers.forEach((item) => {
         const directive = item.$directive
         field[directive] = false
     })
@@ -136,6 +135,7 @@ export function addField(name, vnode, originValue, expression) {
         this.$set(this.validation, name, Object.assign({}, INITIAL_STATUS))
         Object.assign(this.validation[name], {
             $name: name,
+            $handlers: [],
             $element: element,
             $expression: expression,
             $origin: originValue,
@@ -208,7 +208,7 @@ export function addRelated(field, relatedExpression) {
  */
 export function addRuleHandler(name, handler) {
     const field = this.validation[name]
-    const handlers = field.$handlers = field.$handlers || []
+    const handlers = field.$handlers
     const rules = handlers.map(item => item.$directive)
     const directive = handler.$directive
     if (!has(rules, directive)) {
