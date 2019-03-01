@@ -996,11 +996,7 @@
         };
       },
       created: function created() {
-        console.log('created');
         this.validation && (this.validation.$fields = []);
-      },
-      updated: function updated() {
-        console.log('updated');
       },
       methods: (_methods = {}, _defineProperty(_methods, options.accessor, function (name) {
         var key = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'invalid';
@@ -1051,8 +1047,14 @@
                 _field[item.$directive] = false;
               }
 
-              var isValid = item.$handler(value, item.$directiveVal);
-              _field[item.$directive] = !isValid;
+              var isValid = item.$handler(value, item.$directiveVal); // 对于 v-custom，记录 code 便于使用
+
+              if (item.$directive === 'custom') {
+                this.$set(_field, 'customCode', item.$directiveVal);
+                _field[item.$directive] = item.$directiveVal !== true;
+              } else {
+                _field[item.$directive] = !isValid;
+              }
 
               if (!isValid) {
                 _field.invalid = true;

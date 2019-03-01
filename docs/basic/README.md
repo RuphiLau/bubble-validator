@@ -3,13 +3,15 @@
 ```sh
 npm i bubble-validator -S
 ```
-安装完成后，请引入并且通过`Vue.use()`使用它：
+安装完成后，请引入并且通过`mixin`使用它：
 ```js
-import Vue from 'vue'
 import BubbleValidator from 'bubble-validator'
+const validator = BubbleValidator()
 
-Vue.use(BubbleValidator)
-// ....
+export default {
+    mixins: [validator],
+    // ...
+}
 ```
 
 ## 快速上手
