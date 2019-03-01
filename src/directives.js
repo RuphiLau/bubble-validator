@@ -2,7 +2,7 @@
  * 指令定义处理
  * Created by hzliurufei on 2018-12-06 22:03:21 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2019-01-10 17:11:56
+ * @Last Modified time: 2019-03-01 12:55:36
  */
 
 import { addField, removeField, addRelated, addRuleHandler } from './core'
@@ -42,10 +42,10 @@ function _checkFieldName(name) {
  * @return {string} 初始化成功后，返回字段name
  */
 function _initialBind(el, directive, vnode) {
-    if (!!el.dataset.bubbleBound) {
-        return
-    }
     const name = getFieldName(vnode)
+    if (!!el.dataset.bubbleBound) {
+        return name
+    }
     _checkFieldName(name)
     // 取得校验指令
     const directiveName = toCamelCase(directive.name)

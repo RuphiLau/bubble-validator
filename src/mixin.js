@@ -2,7 +2,7 @@
  * 通过Mixin暴露校验结果与校验方法
  * Created by hzliurufei on 2018-11-28 16:07:01 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2019-03-01 11:56:27
+ * @Last Modified time: 2019-03-01 12:46:01
  */
 
 import { INITIAL_STATUS } from './const'
@@ -44,7 +44,6 @@ export default function BubbleValidator(options = {}) {
                             field[item.$directive] = false
                         }
                         const isValid = item.$handler(value, item.$directiveVal)
-                        // 对于 v-custom，记录 code 便于使用
                         if (item.$directive === 'custom') {
                             this.$set(field, 'customCode', item.$directiveVal)
                             field[item.$directive] = item.$directiveVal !== true
