@@ -771,7 +771,7 @@
    * 指令定义处理
    * Created by hzliurufei on 2018-12-06 22:03:21 
    * @Last Modified by: hzliurufei
-   * @Last Modified time: 2019-01-10 17:11:56
+   * @Last Modified time: 2019-03-01 12:55:36
    */
   /**
    * 非法校验元素警告处理
@@ -805,11 +805,11 @@
 
 
   function _initialBind(el, directive, vnode) {
-    if (!!el.dataset.bubbleBound) {
-      return;
-    }
-
     var name = getFieldName(vnode);
+
+    if (!!el.dataset.bubbleBound) {
+      return name;
+    }
 
     _checkFieldName(name); // 取得校验指令
 
@@ -1047,14 +1047,14 @@
                 _field[item.$directive] = false;
               }
 
-              var isValid = item.$handler(value, item.$directiveVal); // 对于 v-custom，记录 code 便于使用
+              var isValid = item.$handler(value, item.$directiveVal);
 
               if (item.$directive === 'custom') {
                 this.$set(_field, 'customCode', item.$directiveVal);
-                _field[item.$directive] = item.$directiveVal !== true;
-              } else {
-                _field[item.$directive] = !isValid;
+                isValid = item.$directiveVal === true;
               }
+
+              _field[item.$directive] = !isValid;
 
               if (!isValid) {
                 _field.invalid = true;

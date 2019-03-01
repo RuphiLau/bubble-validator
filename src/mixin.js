@@ -2,7 +2,7 @@
  * 通过Mixin暴露校验结果与校验方法
  * Created by hzliurufei on 2018-11-28 16:07:01 
  * @Last Modified by: hzliurufei
- * @Last Modified time: 2019-03-01 12:46:01
+ * @Last Modified time: 2019-03-01 13:05:50
  */
 
 import { INITIAL_STATUS } from './const'
@@ -43,13 +43,12 @@ export default function BubbleValidator(options = {}) {
                         if (field.invalid) {
                             field[item.$directive] = false
                         }
-                        const isValid = item.$handler(value, item.$directiveVal)
+                        let isValid = item.$handler(value, item.$directiveVal)
                         if (item.$directive === 'custom') {
                             this.$set(field, 'customCode', item.$directiveVal)
-                            field[item.$directive] = item.$directiveVal !== true
-                        } else {
-                            field[item.$directive] = !isValid
+                            isValid = item.$directiveVal === true
                         }
+                        field[item.$directive] = !isValid
                         if (!isValid) {
                             field.invalid = true
                         }
