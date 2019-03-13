@@ -4,7 +4,8 @@ module.exports = {
     themeConfig: {
         sidebar: [
             ['/', '指南'],
-            ['/basic/', '基础']
+            ['/basic/', '基础'],
+            ['/tutorials/', '教程']
         ]
     }
 }
